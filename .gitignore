@@ -1,0 +1,12 @@
+# Build artifacts
+/bin/
+
+# Local environment files
+.env
+.env.*
+
+# Local DevFlow config generated while developing DevFlow itself
+/devflow.yaml
+/.codex/
+/docs/
+/AGENTS.md
