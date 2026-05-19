@@ -19,6 +19,8 @@ func TestNewRootCommand(t *testing.T) {
 
 	assertHasCommand(t, cmd, "version")
 	assertHasCommand(t, cmd, "init")
+	assertHasCommand(t, cmd, "doctor")
+
 }
 
 func assertHasCommand(t *testing.T, cmd *cobra.Command, use string) {
