@@ -24,6 +24,11 @@ env:
 compose:
   files:
     - docker-compose.yml
+
+checks:
+  commands:
+    - docker
+    - node
 `)
 
 	if err := os.WriteFile(path, data, 0644); err != nil {
@@ -61,6 +66,18 @@ compose:
 
 	if cfg.Compose.Files[0] != "docker-compose.yml" {
 		t.Fatalf("expected docker-compose.yml, got %s", cfg.Compose.Files[0])
+	}
+
+	if len(cfg.Checks.Commands) != 2 {
+		t.Fatalf("expected 2 check commands, got %d", len(cfg.Checks.Commands))
+	}
+
+	if cfg.Checks.Commands[0] != "docker" {
+		t.Fatalf("expected docker command, got %s", cfg.Checks.Commands[0])
+	}
+
+	if cfg.Checks.Commands[1] != "node" {
+		t.Fatalf("expected node command, got %s", cfg.Checks.Commands[1])
 	}
 }
 
@@ -233,5 +250,35 @@ compose:
 
 	if cfg.Compose.ProjectName != "billing-dev" {
 		t.Fatalf("expected custom compose project name billing-dev, got %s", cfg.Compose.ProjectName)
+	}
+}
+
+func TestLoadDefaultsCheckCommands(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "devflow.yaml")
+
+	data := []byte(`project:
+  name: billing-service
+
+compose:
+  files:
+    - docker-compose.yml
+`)
+
+	if err := os.WriteFile(path, data, 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	cfg, err := Load(path)
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+
+	if len(cfg.Checks.Commands) != 1 {
+		t.Fatalf("expected 1 default check command, got %d", len(cfg.Checks.Commands))
+	}
+
+	if cfg.Checks.Commands[0] != "docker" {
+		t.Fatalf("expected default docker command, got %s", cfg.Checks.Commands[0])
 	}
 }

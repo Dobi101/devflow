@@ -12,6 +12,7 @@ type Config struct {
 	Project ProjectConfig `yaml:"project"`
 	Env     EnvConfig     `yaml:"env"`
 	Compose ComposeConfig `yaml:"compose"`
+	Checks  ChecksConfig  `yaml:"checks"`
 }
 
 type ProjectConfig struct {
@@ -26,6 +27,10 @@ type EnvConfig struct {
 type ComposeConfig struct {
 	ProjectName string   `yaml:"project_name"`
 	Files       []string `yaml:"files"`
+}
+
+type ChecksConfig struct {
+	Commands []string `yaml:"commands"`
 }
 
 func Load(path string) (*Config, error) {
@@ -67,5 +72,9 @@ func (c *Config) ApplyDefaults() {
 
 	if strings.TrimSpace(c.Compose.ProjectName) == "" {
 		c.Compose.ProjectName = c.Project.Name
+	}
+
+	if len(c.Checks.Commands) == 0 {
+		c.Checks.Commands = []string{"docker"}
 	}
 }

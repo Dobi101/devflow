@@ -2,6 +2,8 @@ package cli
 
 import (
 	"bytes"
+	"context"
+	"fmt"
 	"os"
 	"strings"
 	"testing"
@@ -45,6 +47,22 @@ func TestDoctorCommandChecksConfig(t *testing.T) {
 	}
 	defer os.Chdir(oldWd)
 
+	oldLookPath := lookPath
+	lookPath = func(name string) error {
+		return nil
+	}
+	defer func() {
+		lookPath = oldLookPath
+	}()
+
+	oldRunCommand := runCommand
+	runCommand = func(ctx context.Context, name string, args ...string) error {
+		return nil
+	}
+	defer func() {
+		runCommand = oldRunCommand
+	}()
+
 	data := []byte(`project:
   name: billing-service
 
@@ -68,6 +86,10 @@ compose:
 		t.Fatal(err)
 	}
 
+	if err := os.WriteFile("docker-compose.yml", []byte("services: {}\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+
 	cmd := newDoctorCommand()
 
 	var out bytes.Buffer
@@ -78,7 +100,7 @@ compose:
 	}
 
 	got := out.String()
-	want := "config: ok\nproject: billing-service\nenv: ok\n"
+	want := "config: ok\nproject: billing-service\nenv: ok\ncompose: ok\ndocker: ok\ndocker compose: ok\n"
 
 	if got != want {
 		t.Fatalf("expected %q, got %q", want, got)
@@ -212,5 +234,181 @@ compose:
 
 	if !strings.Contains(err.Error(), "env missing required variables: REDIS_URL") {
 		t.Fatalf("expected missing REDIS_URL error, got %v", err)
+	}
+}
+
+func TestDoctorCommandFailsWithoutComposeFile(t *testing.T) {
+	dir := t.TempDir()
+
+	oldWd, err := os.Getwd()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if err := os.Chdir(dir); err != nil {
+		t.Fatal(err)
+	}
+	defer os.Chdir(oldWd)
+
+	data := []byte(`project:
+  name: billing-service
+
+env:
+  required:
+    - DATABASE_URL
+
+compose:
+  files:
+    - docker-compose.yml
+`)
+
+	if err := os.WriteFile(configFileName, data, 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	envData := []byte(`DATABASE_URL=postgres://localhost
+`)
+
+	if err := os.WriteFile(".env", envData, 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	cmd := newDoctorCommand()
+
+	err = cmd.RunE(cmd, nil)
+	if err == nil {
+		t.Fatal("expected error, got nil")
+	}
+
+	if !strings.Contains(err.Error(), "compose file not found: docker-compose.yml") {
+		t.Fatalf("expected missing compose file error, got %v", err)
+	}
+}
+
+func TestDoctorCommandFailsWithoutDocker(t *testing.T) {
+	dir := t.TempDir()
+
+	oldWd, err := os.Getwd()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if err := os.Chdir(dir); err != nil {
+		t.Fatal(err)
+	}
+	defer os.Chdir(oldWd)
+
+	oldLookPath := lookPath
+	lookPath = func(name string) error {
+		return fmt.Errorf("command %s not found", name)
+	}
+	defer func() {
+		lookPath = oldLookPath
+	}()
+
+	data := []byte(`project:
+  name: billing-service
+
+env:
+  required:
+    - DATABASE_URL
+
+compose:
+  files:
+    - docker-compose.yml
+`)
+
+	if err := os.WriteFile(configFileName, data, 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	envData := []byte(`DATABASE_URL=postgres://localhost
+`)
+
+	if err := os.WriteFile(".env", envData, 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := os.WriteFile("docker-compose.yml", []byte("services: {}\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	cmd := newDoctorCommand()
+
+	err = cmd.RunE(cmd, nil)
+	if err == nil {
+		t.Fatal("expected error, got nil")
+	}
+
+	if !strings.Contains(err.Error(), "docker check failed") {
+		t.Fatalf("expected docker check failed error, got %v", err)
+	}
+}
+
+func TestDoctorCommandFailsWithoutDockerCompose(t *testing.T) {
+	dir := t.TempDir()
+
+	oldWd, err := os.Getwd()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if err := os.Chdir(dir); err != nil {
+		t.Fatal(err)
+	}
+	defer os.Chdir(oldWd)
+
+	oldLookPath := lookPath
+	lookPath = func(name string) error {
+		return nil
+	}
+	defer func() {
+		lookPath = oldLookPath
+	}()
+
+	oldRunCommand := runCommand
+	runCommand = func(ctx context.Context, name string, args ...string) error {
+		return fmt.Errorf("command failed")
+	}
+	defer func() {
+		runCommand = oldRunCommand
+	}()
+
+	data := []byte(`project:
+  name: billing-service
+
+env:
+  required:
+    - DATABASE_URL
+
+compose:
+  files:
+    - docker-compose.yml
+`)
+
+	if err := os.WriteFile(configFileName, data, 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	envData := []byte(`DATABASE_URL=postgres://localhost
+`)
+
+	if err := os.WriteFile(".env", envData, 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := os.WriteFile("docker-compose.yml", []byte("services: {}\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	cmd := newDoctorCommand()
+
+	err = cmd.RunE(cmd, nil)
+	if err == nil {
+		t.Fatal("expected error, got nil")
+	}
+
+	if !strings.Contains(err.Error(), "docker compose check failed") {
+		t.Fatalf("expected docker compose check failed error, got %v", err)
 	}
 }
